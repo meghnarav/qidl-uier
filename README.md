@@ -1,2 +1,2 @@
 # qidl-uier
-Quantum Inspired Deep Learning for Image Enhancement and Restoration
+Quantum Inspired Deep Learning for Underwater Image Enhancement and Restoration
