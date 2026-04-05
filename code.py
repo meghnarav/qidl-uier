@@ -174,12 +174,53 @@ for epoch in range(10):
     print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | PSNR: {metrics['PSNR']:.2f}")
 
 # GRAPHS
+# 1 Loss
+plt.figure()
 plt.plot(loss_history)
 plt.title("Training Loss")
-plt.savefig("loss.png")
+plt.savefig("graph1_loss.png")
+# 2 Validation Loss
+plt.figure()
+plt.plot(val_loss_history)
+plt.title("Validation Loss")
+plt.savefig("graph2_val_loss.png")
+# 3 PSNR
+plt.figure()
 plt.plot(psnr_history)
 plt.title("PSNR Curve")
-plt.savefig("psnr.png")
+plt.savefig("graph3_psnr.png")
+# 4 SSIM
+plt.figure()
+plt.plot(ssim_history)
+plt.title("SSIM Curve")
+plt.savefig("graph4_ssim.png")
+# 5 Combined Loss vs Val
+plt.figure()
+plt.plot(loss_history, label="Train")
+plt.plot(val_loss_history, label="Val")
+plt.legend()
+plt.title("Train vs Val Loss")
+plt.savefig("graph5_compare.png")
+# 6 PSNR distribution
+plt.figure()
+plt.hist(psnr_list)
+plt.title("PSNR Distribution")
+plt.savefig("graph6_hist_psnr.png")
+# 7 SSIM distribution
+plt.figure()
+plt.hist(ssim_list)
+plt.title("SSIM Distribution")
+plt.savefig("graph7_hist_ssim.png")
+# 8 UIQM
+plt.figure()
+plt.plot(uiqm_list)
+plt.title("UIQM Scores")
+plt.savefig("graph8_uiqm.png")
+# 9 UCIQE
+plt.figure()
+plt.plot(uciqe_list)
+plt.title("UCIQE Scores")
+plt.savefig("graph9_uciqe.png")
 
 # TEST / INFERENCE
 def enhance_image(model, image_path):
