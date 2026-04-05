@@ -96,7 +96,99 @@ class TransformerBlock(nn.Module):
         x = x.permute(0,2,1).view(b,c,h,w)
         return x
 
+# FULL QIDL MODEL
+class QIDLModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.quantum = QuantumEncoding()
+        self.conv1 = nn.Conv2d(6, 64, 3, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
+        self.transformer = TransformerBlock(128)
+        self.ca = ChannelAttention(128)
+        self.sa = SpatialAttention()
+        self.res1 = nn.Conv2d(128,128,3,padding=1)
+        self.res2 = nn.Conv2d(128,128,3,padding=1)
+        self.decoder = nn.Sequential(
+            nn.Conv2d(128,64,3,padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64,3,3,padding=1),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        x = self.quantum(x)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = self.transformer(x)
+        x = self.ca(x)
+        x = self.sa(x)
+        res = F.relu(self.res1(x))
+        res = self.res2(res)
+        x = x + res
+        out = self.decoder(x)
+        return out
 
+# LOSS FUNCTIONS 
+def ssim_loss(img1, img2):
+    return 1 - torch.mean((2*img1*img2 + 0.01)/(img1**2 + img2**2 + 0.01))
+def perceptual_loss(x, y):
+    return torch.mean(torch.abs(x - y))
+def total_loss(out, gt):
+    mse = F.mse_loss(out, gt)
+    ssim = ssim_loss(out, gt)
+    perc = perceptual_loss(out, gt)
+    return 0.5*mse + 0.3*ssim + 0.2*perc
+
+# METRICS
+def psnr(mse):
+    return 10 * torch.log10(1 / mse)
+def compute_metrics(out, gt):
+    mse = F.mse_loss(out, gt)
+    return {
+        "MSE": mse.item(),
+        "PSNR": psnr(mse).item()
+    }
+
+# TRAINING LOOP
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = QIDLModel().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+train_dataset = UnderwaterDataset("data/input", "data/gt", transform)
+train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+loss_history = []
+psnr_history = []
+for epoch in range(10):
+    model.train()
+    total_loss_epoch = 0
+    for img, gt in train_loader:
+        img, gt = img.to(device), gt.to(device)
+        out = model(img)
+        loss = total_loss(out, gt)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        total_loss_epoch += loss.item()
+    avg_loss = total_loss_epoch / len(train_loader)
+    loss_history.append(avg_loss)
+    metrics = compute_metrics(out, gt)
+    psnr_history.append(metrics["PSNR"])
+    print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | PSNR: {metrics['PSNR']:.2f}")
+
+# GRAPHS
+plt.plot(loss_history)
+plt.title("Training Loss")
+plt.savefig("loss.png")
+plt.plot(psnr_history)
+plt.title("PSNR Curve")
+plt.savefig("psnr.png")
+
+# TEST / INFERENCE
+def enhance_image(model, image_path):
+    model.eval()
+    img = Image.open(image_path).convert("RGB")
+    img = transform(img).unsqueeze(0).to(device)
+    with torch.no_grad():
+        out = model(img)
+    return out.squeeze().cpu()
 
 
 '''
