@@ -1,11 +1,13 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from torchvision.datasets import ImageFolder
+from PIL import Image
 import numpy as np
-from skimage import io
+import math
+import matplotlib.pyplot as plt
 
 class UnderwaterDataset(Dataset):
     def __init__(self, image_paths, labels, transform=None):
