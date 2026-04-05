@@ -28,13 +28,23 @@ class UnderwaterDataset(Dataset):
         return img, gt
 
 transform = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize((256, 256)),
+    transforms.Resize((256,256)),
     transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    transforms.RandomRotation(10),
+    transforms.ColorJitter(0.2,0.2,0.2,0.1),
     transforms.ToTensor()
 ])
+
+
+class QuantumEncoding(nn.Module):
+    def forward(self, x):
+        theta = math.pi * x
+        real = torch.cos(theta)
+        imag = torch.sin(theta)
+        return torch.cat([real, imag], dim=1)
+
+
+'''
 
 # Example placeholders for dataset
 train_dataset = UnderwaterDataset(image_paths=["path1.png","path2.png"],
@@ -87,4 +97,4 @@ for epoch in range(2):
         optimizer.step()
         
         if batch_idx % 10 == 0:
-            print(f"Epoch [{epoch+1}], Batch [{batch_idx}], Loss: {loss.item():.4f}")
+            print(f"Epoch [{epoch+1}], Batch [{batch_idx}], Loss: {loss.item():.4f}") '''
