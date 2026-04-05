@@ -10,20 +10,22 @@ import math
 import matplotlib.pyplot as plt
 
 class UnderwaterDataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None):
-        self.image_paths = image_paths
-        self.labels = labels
+    def __init__(self, input_dir, gt_dir=None, transform=None):
+        self.input_paths = sorted([os.path.join(input_dir, f) for f in os.listdir(input_dir)])
+        self.gt_paths = sorted([os.path.join(gt_dir, f) for f in os.listdir(gt_dir)]) if gt_dir else None
         self.transform = transform
-
     def __len__(self):
-        return len(self.image_paths)
-
+        return len(self.input_paths)
     def __getitem__(self, idx):
-        img = io.imread(self.image_paths[idx])
-        label = self.labels[idx]
+        img = Image.open(self.input_paths[idx]).convert("RGB")
+        if self.gt_paths:
+            gt = Image.open(self.gt_paths[idx]).convert("RGB")
+        else:
+            gt = img
         if self.transform:
             img = self.transform(img)
-        return img, label
+            gt = self.transform(gt)
+        return img, gt
 
 transform = transforms.Compose([
     transforms.ToPILImage(),
