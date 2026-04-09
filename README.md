@@ -50,7 +50,7 @@ Loss = 0.5·MSE + 0.3·SSIM + 0.1·Colour + 0.1·Gradient
 ## Setup
 
 ```bash
-pip install torch torchvision scikit-image matplotlib pillow numpy
+python -m pip install torch torchvision scikit-image matplotlib pillow numpy
 ```
 
 ---
