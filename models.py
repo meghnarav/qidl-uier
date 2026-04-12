@@ -94,7 +94,7 @@ class QIDL(nn.Module):
         super().__init__()
         self.q = QuantumEncoding()
 
-        self.enc1 = nn.Conv2d(3, 64, 3, padding=1)
+        self.enc1 = nn.Conv2d(6, 64, 3, padding=1)
         self.enc2 = nn.Conv2d(64, 128, 3, padding=1)
 
         self.tr = nn.Sequential(
