@@ -54,22 +54,21 @@ class CBAM(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.attn = nn.MultiheadAttention(dim,4,batch_first=True)
-        self.ln1 = nn.LayerNorm(dim)
-        self.ln2 = nn.LayerNorm(dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(dim, dim*2),
+        self.attn = nn.MultiheadAttention(dim, 4, batch_first=True)
+        self.norm1 = nn.LayerNorm(dim)   # was ln1
+        self.norm2 = nn.LayerNorm(dim)   # was ln2
+        self.ff = nn.Sequential(         # was mlp
+            nn.Linear(dim, dim * 2),
             nn.ReLU(),
-            nn.Linear(dim*2, dim)
+            nn.Linear(dim * 2, dim)
         )
 
     def forward(self, x):
         b, c, h, w = x.shape
-        # flatten AFTER ensuring real shape
-        x = x.flatten(2).transpose(1, 2)  # (B, HW, C)
+        x = x.flatten(2).transpose(1, 2)      # (B, HW, C)
         attn, _ = self.attn(x, x, x)
-        x = self.norm1(x + attn)
-        x = self.norm2(x + self.ff(x))
+        x = self.norm1(x + attn)              # now matches __init__
+        x = self.norm2(x + self.ff(x))        # now matches __init__
         x = x.transpose(1, 2).reshape(b, c, h, w)
         return x
 
