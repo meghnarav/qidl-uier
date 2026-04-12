@@ -18,7 +18,7 @@ class UIEBDataset(Dataset):
         ])
 
         self.transform = transform or transforms.Compose([
-            transforms.Resize((256, 256)),
+            transforms.Resize((128, 128)),
             transforms.ToTensor()
         ])
 

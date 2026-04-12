@@ -65,7 +65,7 @@ class TransformerBlock(nn.Module):
 
     def forward(self,x):
         b,c,h,w = x.shape
-        x = F.adaptive_avg_pool2d(x, (16, 16))
+        x = F.adaptive_avg_pool2d(x, (32, 32))
         x = x.view(b,c,h*w).permute(0,2,1)
         a,_ = self.attn(x,x,x)
         x = self.ln1(x+a)
@@ -94,14 +94,14 @@ class QIDL(nn.Module):
         super().__init__()
         self.q = QuantumEncoding()
 
-        self.enc1 = nn.Conv2d(6,base,3,1,1)
-        self.enc2 = nn.Conv2d(base,base*2,3,1,1)
+        self.enc1 = nn.Conv2d(3, 64, 3, padding=1)
+        self.enc2 = nn.Conv2d(64, 128, 3, padding=1)
 
         self.tr = nn.Sequential(
-            nn.Conv2d(C, C, 3, stride=2, padding=1),
-            TransformerBlock(C),
-            nn.ConvTranspose2d(C, C, 4, stride=2, padding=1)
-        )
+            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1),  # 128→64x64
+            TransformerBlock(128),
+            nn.ConvTranspose2d(128, 128, kernel_size=4, stride=2, padding=1)  # back
+        )   
         self.res = nn.Sequential(*[ResBlock(base*2) for _ in range(n_res)])
 
         self.dec = nn.Sequential(
