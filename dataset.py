@@ -1,24 +1,35 @@
-import os, random
+import os
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 class UIEBDataset(Dataset):
-    def __init__(self, inp, gt, transform=None):
-        self.inp = sorted(os.listdir(inp))
-        self.gt = sorted(os.listdir(gt))
-        self.inp = [os.path.join(inp, x) for x in self.inp]
-        self.gt = [os.path.join(gt, x) for x in self.gt]
-        self.t = transform
+    def __init__(self, inp_dir, gt_dir, transform=None):
+        self.inp_paths = sorted([
+            os.path.join(inp_dir, f)
+            for f in os.listdir(inp_dir)
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ])
 
-    def __len__(self): return len(self.inp)
+        self.gt_paths = sorted([
+            os.path.join(gt_dir, f)
+            for f in os.listdir(gt_dir)
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ])
 
-    def __getitem__(self, i):
-        img = Image.open(self.inp[i]).convert("RGB")
-        gt  = Image.open(self.gt[i]).convert("RGB")
-        if self.t:
-            seed = random.randint(0, 99999)
-            random.seed(seed)
-            img = self.t(img)
-            random.seed(seed)
-            gt = self.t(gt)
-        return img, gt
+        self.transform = transform or transforms.Compose([
+            transforms.Resize((256, 256)),
+            transforms.ToTensor()
+        ])
+
+    def __len__(self):
+        return len(self.inp_paths)
+
+    def __getitem__(self, idx):
+        inp = Image.open(self.inp_paths[idx]).convert("RGB")
+        gt  = Image.open(self.gt_paths[idx]).convert("RGB")
+
+        inp = self.transform(inp)
+        gt  = self.transform(gt)
+
+        return inp, gt
