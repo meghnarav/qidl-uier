@@ -1,10 +1,5 @@
 # qidl-uier
-## Quantum-Inspired Deep Learning for Underwater Image Enhancement and Restoration
-
-> **Copyright (c) 2026 Meghna Ravikumar. All rights reserved.**  
-> No part of this software may be reproduced or distributed without permission.
-
----
+# Quantum-Inspired Deep Learning for Underwater Image Enhancement and Restoration
 
 ## Overview
 
@@ -50,7 +45,7 @@ Loss = 0.5·MSE + 0.3·SSIM + 0.1·Colour + 0.1·Gradient
 ## Setup
 
 ```bash
-pip install torch torchvision scikit-image matplotlib pillow numpy
+python -m pip install torch torchvision scikit-image matplotlib pillow numpy
 ```
 
 ---
