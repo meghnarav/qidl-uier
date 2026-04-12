@@ -8,7 +8,7 @@ from config import Config
 
 device = Config.device
 
-ds = UIEBDataset("data/input","data/gt")
+ds = UIEBDataset("data/train/input","data/train/gt")
 
 n=len(ds)
 tr,va,_ = random_split(ds,[int(0.8*n),int(0.1*n),n-int(0.9*n)])
