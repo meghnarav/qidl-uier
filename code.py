@@ -292,7 +292,10 @@ class QIDLModel(nn.Module):
         xq = self.quantum(x)
         f1 = self.enc1(xq)
         f2 = self.enc2(f1)
-        ft = self.transformer(f2)
+        orig_shape = f2.shape[-2:]
+        f2_small = torch.nn.functional.interpolate(f2, size=(16, 16), mode='bilinear', align_corners=False)
+        ft_small = self.transformer(f2_small)
+        ft = torch.nn.functional.interpolate(ft_small, size=orig_shape, mode='bilinear', align_corners=False)
         fr = self.cbam(self.res_blocks(ft))
         return self.dec2(self.dec1(fr))
 
@@ -665,7 +668,7 @@ class SyntheticUnderwaterDataset(Dataset):
     Synthetic demo dataset that simulates underwater colour degradation.
     Requires no disk data — used to verify the full pipeline runs correctly.
     """
-    def __init__(self, n: int = 200, size: int = 256):
+    def __init__(self, n: int = 50, size: int = 64):
         self.n, self.s = n, size
 
     def __len__(self):
@@ -764,14 +767,14 @@ def main():
     te_loader = DataLoader(te_ds, 1,               shuffle=False, **kw)
 
     # ── MODEL ───────────────────────────────────────────────────────────────
-    model = QIDLModel(args.base_ch, args.n_res).to(device)
+    model = QIDLModel(base_ch=16, n_res=1).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Trainable parameters : {n_params:,}\n")
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=args.lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=3, verbose=False)
+    optimizer, mode="min", factor=0.5, patience=3)
 
     # ── TRAIN ───────────────────────────────────────────────────────────────
     history = train_qidl(
