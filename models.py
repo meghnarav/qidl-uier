@@ -63,15 +63,15 @@ class TransformerBlock(nn.Module):
             nn.Linear(dim*2, dim)
         )
 
-    def forward(self,x):
-        b,c,h,w = x.shape
-        x = F.adaptive_avg_pool2d(x, (32, 32))
-        x = x.view(b,c,h*w).permute(0,2,1)
-        a,_ = self.attn(x,x,x)
-        x = self.ln1(x+a)
-        x = self.ln2(x + self.mlp(x))
-        x = x.permute(0,2,1).view(b,c,32, 32)
-        return F.interpolate(x, size=(h, w))
+    def forward(self, x):
+        b, c, h, w = x.shape
+        # flatten AFTER ensuring real shape
+        x = x.flatten(2).transpose(1, 2)  # (B, HW, C)
+        attn, _ = self.attn(x, x, x)
+        x = self.norm1(x + attn)
+        x = self.norm2(x + self.ff(x))
+        x = x.transpose(1, 2).reshape(b, c, h, w)
+        return x
 
 # ---------- Residual ----------
 class ResBlock(nn.Module):
