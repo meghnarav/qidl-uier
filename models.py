@@ -70,8 +70,8 @@ class TransformerBlock(nn.Module):
         a,_ = self.attn(x,x,x)
         x = self.ln1(x+a)
         x = self.ln2(x + self.mlp(x))
-        return x.permute(0,2,1).view(b,c,h,w)
-
+        x = x.permute(0,2,1).view(b,c,32, 32)
+        return F.interpolate(x, size=(h, w))
 
 # ---------- Residual ----------
 class ResBlock(nn.Module):
