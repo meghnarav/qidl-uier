@@ -126,7 +126,3 @@ Ravikumar, M. (2026). Quantum-Inspired Deep Learning Framework for Robust
 Underwater Image Enhancement and Restoration. VIT Chennai.
 https://github.com/meghnarav/qidl-uier
 ```
-
----
-
-**License:** Copyright (c) 2026 Meghna Ravikumar. All rights reserved.
