@@ -6,45 +6,85 @@ from losses import total
 from metrics import psnr, ssim
 from config import Config
 
-device = Config.device
+# ─────────────────────────────────────────────
+# DEVICE FIX (IMPORTANT)
+# ─────────────────────────────────────────────
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
 
-ds = UIEBDataset("data/train/input","data/train/gt")
+print(f"[INFO] Using device: {device}")
 
-n=len(ds)
-tr,va,_ = random_split(ds,[int(0.8*n),int(0.1*n),n-int(0.9*n)])
+# ─────────────────────────────────────────────
+# DATASET
+# ─────────────────────────────────────────────
+ds = UIEBDataset("data/train/input", "data/train/gt")
 
-tr = DataLoader(tr,batch_size=Config.batch_size,shuffle=True)
-va = DataLoader(va,batch_size=Config.batch_size)
+n = len(ds)
+tr_len = int(0.8 * n)
+va_len = int(0.1 * n)
+te_len = n - tr_len - va_len
 
+tr_ds, va_ds, _ = random_split(
+    ds,
+    [tr_len, va_len, te_len],
+    generator=torch.Generator().manual_seed(42)
+)
+
+tr = DataLoader(tr_ds, batch_size=Config.batch_size, shuffle=True)
+va = DataLoader(va_ds, batch_size=Config.batch_size, shuffle=False)
+
+# ─────────────────────────────────────────────
+# MODEL
+# ─────────────────────────────────────────────
 model = QIDL().to(device)
-opt = torch.optim.Adam(model.parameters(),lr=Config.lr)
 
+opt = torch.optim.Adam(model.parameters(), lr=Config.lr)
+
+# ─────────────────────────────────────────────
+# TRAIN LOOP
+# ─────────────────────────────────────────────
 for ep in range(Config.epochs):
     model.train()
-    tl=0
+    tl = 0
 
-    for x,y in tr:
-        x,y=x.to(device),y.to(device)
-        out=model(x)
-        loss=total(out,y)
+    for x, y in tr:
+        x, y = x.to(device), y.to(device)
+
+        out = model(x)
+        loss = total(out, y)
 
         opt.zero_grad()
         loss.backward()
         opt.step()
 
-        tl+=loss.item()
+        tl += loss.item()
 
+    # ─────────────────────────────────────────
+    # VALIDATION
+    # ─────────────────────────────────────────
     model.eval()
-    pv=0
-    sv=0
+    pv, sv = 0, 0
 
     with torch.no_grad():
-        for x,y in va:
-            x,y=x.to(device),y.to(device)
-            out=model(x)
-            pv+=psnr(out,y)
-            sv+=ssim(out,y)
+        for x, y in va:
+            x, y = x.to(device), y.to(device)
+            out = model(x)
 
-    print(ep, tl/len(tr), pv/len(va), sv/len(va))
+            pv += psnr(out, y)
+            sv += ssim(out, y)
 
-torch.save(model.state_dict(),"qidl.pth")
+    pv /= len(va)
+    sv /= len(va)
+
+    print(
+        f"Epoch {ep+1}/{Config.epochs} | "
+        f"Loss: {tl/len(tr):.4f} | "
+        f"PSNR: {pv:.2f} | SSIM: {sv:.4f}"
+    )
+
+# ─────────────────────────────────────────────
+# SAVE MODEL
+# ─────────────────────────────────────────────
+torch.save(model.state_dict(), "qidl.pth")
+print("[INFO] Model saved → qidl.pth")
