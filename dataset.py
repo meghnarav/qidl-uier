@@ -2,6 +2,7 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+from config import Config   # add this import
 
 class UIEBDataset(Dataset):
     def __init__(self, inp_dir, gt_dir, transform=None):
@@ -10,16 +11,15 @@ class UIEBDataset(Dataset):
             for f in os.listdir(inp_dir)
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ])
-
         self.gt_paths = sorted([
             os.path.join(gt_dir, f)
             for f in os.listdir(gt_dir)
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ])
-
         self.transform = transform or transforms.Compose([
-            transforms.Resize((128, 128)),
-            transforms.ToTensor()
+            transforms.Resize((Config.img_size, Config.img_size)),  # was 128, 128
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])  # add this too
         ])
 
     def __len__(self):
@@ -28,8 +28,6 @@ class UIEBDataset(Dataset):
     def __getitem__(self, idx):
         inp = Image.open(self.inp_paths[idx]).convert("RGB")
         gt  = Image.open(self.gt_paths[idx]).convert("RGB")
-
         inp = self.transform(inp)
         gt  = self.transform(gt)
-
         return inp, gt
