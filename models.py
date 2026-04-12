@@ -90,7 +90,7 @@ class ResBlock(nn.Module):
 
 # ---------- Full QIDL ----------
 class QIDL(nn.Module):
-    def __init__(self, base=64, n_res=4):
+    def __init__(self, base=64, n_res=4, C=64):
         super().__init__()
         self.q = QuantumEncoding()
 
