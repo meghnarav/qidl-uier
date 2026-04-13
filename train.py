@@ -1,90 +1,100 @@
 import torch
 from torch.utils.data import DataLoader, random_split
+
+from config  import Config
 from dataset import UIEBDataset
-from models import QIDL
-from losses import total
+from models  import QIDL
+from losses  import total
 from metrics import psnr, ssim
-from config import Config
+from utils   import set_seed, save_model, count_params
 
-# ─────────────────────────────────────────────
-# DEVICE FIX (IMPORTANT)
-# ─────────────────────────────────────────────
-device = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
+# ── Reproducibility ───────────────────────────────────────────
+set_seed(Config.seed)
+
+# ── Device ────────────────────────────────────────────────────
+# BUG FIX: original used Config.device (string "cuda") directly;
+# torch.device() must wrap it for proper device-move semantics.
+device = torch.device(Config.device)
+print(f"[INFO] Device : {device}")
+
+# ── Dataset ───────────────────────────────────────────────────
+full_ds = UIEBDataset(
+    "data/train/input",
+    "data/train/gt",
+    augment=True,         # random flip/rotation on training set
 )
-
-print(f"[INFO] Using device: {device}")
-
-# ─────────────────────────────────────────────
-# DATASET
-# ─────────────────────────────────────────────
-ds = UIEBDataset("data/train/input", "data/train/gt")
-
-n = len(ds)
-tr_len = int(0.8 * n)
-va_len = int(0.1 * n)
-te_len = n - tr_len - va_len
+n      = len(full_ds)
+n_tr   = int(0.8 * n)
+n_va   = int(0.1 * n)
+n_te   = n - n_tr - n_va
 
 tr_ds, va_ds, _ = random_split(
-    ds,
-    [tr_len, va_len, te_len],
-    generator=torch.Generator().manual_seed(42)
+    full_ds, [n_tr, n_va, n_te],
+    generator=torch.Generator().manual_seed(Config.seed),
 )
 
-tr = DataLoader(tr_ds, batch_size=Config.batch_size, shuffle=True)
-va = DataLoader(va_ds, batch_size=Config.batch_size, shuffle=False)
+kw = dict(num_workers=Config.num_workers,
+          pin_memory=(device.type == "cuda"))
 
-# ─────────────────────────────────────────────
-# MODEL
-# ─────────────────────────────────────────────
-model = QIDL().to(device)
+tr_loader = DataLoader(tr_ds, Config.batch_size, shuffle=True,  **kw)
+va_loader = DataLoader(va_ds, Config.batch_size, shuffle=False, **kw)
 
-opt = torch.optim.Adam(model.parameters(), lr=Config.lr)
+# ── Model ─────────────────────────────────────────────────────
+model = QIDL(base=Config.base_ch, n_res=Config.n_res).to(device)
+print(f"[INFO] Parameters: {count_params(model):,}")
 
-# ─────────────────────────────────────────────
-# TRAIN LOOP
-# ─────────────────────────────────────────────
-for ep in range(Config.epochs):
+opt       = torch.optim.Adam(model.parameters(),
+                             lr=Config.lr, weight_decay=1e-5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    opt, mode="min", factor=0.5, patience=3, verbose=False,
+)
+
+# ── Training loop ─────────────────────────────────────────────
+best_psnr = 0.0
+wait      = 0
+
+for ep in range(1, Config.epochs + 1):
+
+    # ── train ──────────────────────────────────────────────
     model.train()
-    tl = 0
-
-    for x, y in tr:
+    t_loss = 0.0
+    for x, y in tr_loader:
         x, y = x.to(device), y.to(device)
-
-        out = model(x)
-        loss = total(out, y)
-
+        loss = total(model(x), y)
         opt.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
+        t_loss += loss.item()
+    t_loss /= len(tr_loader)
 
-        tl += loss.item()
-
-    # ─────────────────────────────────────────
-    # VALIDATION
-    # ─────────────────────────────────────────
+    # ── validate ───────────────────────────────────────────
     model.eval()
-    pv, sv = 0, 0
-
+    pv = sv = 0.0
     with torch.no_grad():
-        for x, y in va:
+        for x, y in va_loader:
             x, y = x.to(device), y.to(device)
-            out = model(x)
+            out   = model(x)
+            pv   += psnr(out, y)
+            sv   += ssim(out, y)
+    pv /= len(va_loader)
+    sv /= len(va_loader)
 
-            pv += psnr(out, y)
-            sv += ssim(out, y)
+    scheduler.step(t_loss)
 
-    pv /= len(va)
-    sv /= len(va)
+    print(f"Epoch {ep:3d}/{Config.epochs} | "
+          f"Loss {t_loss:.4f} | PSNR {pv:.2f} dB | SSIM {sv:.4f}")
 
-    print(
-        f"Epoch {ep+1}/{Config.epochs} | "
-        f"Loss: {tl/len(tr):.4f} | "
-        f"PSNR: {pv:.2f} | SSIM: {sv:.4f}"
-    )
+    # ── early stopping + checkpoint ────────────────────────
+    if pv > best_psnr:
+        best_psnr = pv
+        save_model(model, Config.checkpoint)
+        wait = 0
+    else:
+        wait += 1
+        if wait >= Config.patience:
+            print(f"[INFO] Early stopping at epoch {ep}.")
+            break
 
-# ─────────────────────────────────────────────
-# SAVE MODEL
-# ─────────────────────────────────────────────
-torch.save(model.state_dict(), "qidl.pth")
-print("[INFO] Model saved → qidl.pth")
+print(f"[INFO] Best PSNR : {best_psnr:.2f} dB")
+print(f"[INFO] Model saved → {Config.checkpoint}")

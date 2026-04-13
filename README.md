@@ -1,106 +1,46 @@
 # qidl-uier
-# Quantum-Inspired Deep Learning for Underwater Image Enhancement and Restoration
+## Quantum-Inspired Deep Learning for Underwater Image Enhancement and Restoration
 
-## Overview
+> **Copyright (c) 2026 Meghna Ravikumar. All rights reserved.**  
+> No part of this software may be reproduced or distributed without permission.
 
-Underwater images degrade severely due to wavelength-selective light absorption, forward/backward scattering, non-uniform illumination, and depth-dependent contrast loss — producing colour-distorted, hazy, low-contrast imagery. **QIDL-UIER** addresses this through three architectural innovations:
+---
 
-1. **Quantum-Inspired Pixel Encoding** — maps each pixel `p` to `[cos(π·p), sin(π·p)]` before any convolution, adding structured non-linear representations inspired by quantum superposition
-2. **Hybrid CNN-Transformer + CBAM** — local texture (CNN) + global colour context (Vision Transformer) + selective spatial attention (CBAM)
-3. **Physics-Guided Composite Loss** — MSE + SSIM + colour consistency + gradient-edge preservation
+## What this does
 
-Developed as undergraduate research at VIT Chennai, School of CSE (AI & ML).
+Underwater images degrade due to wavelength-selective light absorption (red disappears first), particle scattering, and depth-dependent contrast loss. QIDL-UIER restores them through three innovations:
+
+1. **Quantum-Inspired Pixel Encoding** — maps each pixel `p` to `[cos(π·p), sin(π·p)]` before any convolution. No learnable parameters; enriches feature space using quantum superposition mathematics.
+2. **Hybrid CNN-Transformer + CBAM** — local texture extraction (CNN) + global colour context (Vision Transformer) + spatially selective attention (CBAM).
+3. **Physics-Guided Composite Loss** — MSE + differentiable SSIM + per-channel colour consistency + VGG-16 perceptual loss.
 
 ---
 
 ## Results
 
-| Metric | QIDL (Proposed) | Best Baseline | Improvement |
+Evaluated on **UIEB · EUVP · SUIM-E · RUIE**
+
+| Metric | QIDL | Best Baseline | Δ |
 |---|---|---|---|
-| PSNR (dB) ↑ | **30.84** | 29.61 | +1.23 dB |
-| SSIM ↑ | **0.8916** | 0.8585 | +0.031 |
+| PSNR (dB) ↑ | **30.84** | 29.61 | +1.23 |
+| SSIM ↑ | **0.8916** | 0.8585 | +0.033 |
 | UIQM ↑ | **0.7734** | 0.7213 | +0.052 |
 | UCIQE ↑ | **0.6943** | 0.6712 | +0.023 |
-
-Evaluated on: UIEB · EUVP · SUIM-E · RUIE
 
 ---
 
 ## Architecture
 
 ```
-Input (3-ch)
-    → QuantumEncoding  [cos(πp) ‖ sin(πp)]   → 6-ch  (no learnable params)
-    → CNN Encoder      [6→64→128]
-    → TransformerBlock [global self-attention]
-    → ResBlock×4 + CBAM [local refinement + selective attention]
-    → CNN Decoder      [128→64→3 + Tanh]
+Input (3-ch, [-1,1])
+    ↓  QuantumEncoding          cos(π·p) ‖ sin(π·p)   → 6-ch
+    ↓  CNN Encoder              Conv(6→64) → Conv(64→128)
+    ↓  Downsample → TransformerBlock → Upsample
+    ↓  ResBlock × 4  +  CBAM   (channel + spatial attention)
+    ↓  CNN Decoder              Conv(128→64→3) + Tanh
 Output (3-ch enhanced image)
 
-Loss = 0.5·MSE + 0.3·SSIM + 0.1·Colour + 0.1·Gradient
-```
-
----
-
-## Setup
-
-```bash
-python -m pip install torch torchvision scikit-image matplotlib pillow numpy
-```
-
----
-
-## Datasets
-
-| Dataset | Link | Notes |
-|---|---|---|
-| UIEB | https://li-chongyi.github.io/proj_benchmark.html | 950 paired images |
-| EUVP | http://irvlab.cs.umn.edu/resources/euvp-dataset | 12k+ paired/unpaired |
-| SUIM-E | http://irvlab.cs.umn.edu/resources/suim-dataset | Segmentation-focused |
-| RUIE | https://github.com/dlut-dimt/RUIE | 4365 real-world, no GT |
-
-Place under `data/train/`, `data/val/`, `data/test/` with `input/` and `gt/` subfolders.
-
----
-
-## How to Run
-
-### 1. Demo — no dataset needed
-
-```bash
-python qidl_final.py
-```
-Runs on synthetic data, confirms full pipeline works, saves 9 graphs to `graphs/`.
-
-### 2. Train on real data
-
-```bash
-python qidl_final.py --mode train \
-    --train_input data/train/input --train_gt data/train/gt \
-    --val_input   data/val/input   --val_gt   data/val/gt   \
-    --test_input  data/test/input  --test_gt  data/test/gt  \
-    --epochs 30 --batch_size 8
-```
-
-### 3. Enhance a single image
-
-```bash
-python qidl_final.py --mode infer \
-    --checkpoint qidl_best.pth \
-    --input_image underwater.jpg \
-    --output_image enhanced.jpg
-```
-
-### 4. Python API
-
-```python
-import torch
-from qidl_final import QIDLModel, enhance_image
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model  = QIDLModel().to(device)
-model.load_state_dict(torch.load("qidl_best.pth", map_location=device))
-result = enhance_image(model, "underwater.jpg", device, "enhanced.jpg")
+Loss = 0.5·MSE + 0.2·SSIM + 0.2·Colour + 0.1·Perceptual(VGG-16)
 ```
 
 ---
@@ -109,13 +49,100 @@ result = enhance_image(model, "underwater.jpg", device, "enhanced.jpg")
 
 ```
 qidl-uier/
-├── qidl_final.py      ← Complete implementation (single file)
-├── README.md
+├── config.py       ← all hyperparameters (edit this to change settings)
+├── dataset.py      ← UIEBDataset with augmentation
+├── models.py       ← QuantumEncoding, CBAM, TransformerBlock, QIDL
+├── losses.py       ← MSE, SSIM, colour, perceptual, composite total()
+├── metrics.py      ← psnr(), ssim()
+├── train.py        ← full training loop with early stopping
+├── infer.py        ← single-image enhancement
+├── utils.py        ← set_seed, save/load model, count_params
 ├── requirements.txt
 ├── .gitignore
-├── data/              ← Datasets (gitignored)
-└── graphs/            ← 9 training/evaluation plots (commit these)
+├── data/
+│   └── train/
+│       ├── input/       ← degraded images
+│       └── gt/          ← reference/ground-truth images
+└── graphs/              ← training plots (generated by train.py)
 ```
+
+---
+
+## Setup
+
+```bash
+pip install torch torchvision scikit-image matplotlib pillow numpy
+```
+
+Python 3.9+. GPU recommended but not required — device is auto-detected.
+
+---
+
+## Datasets
+
+| Dataset | Link | GT | Size |
+|---|---|---|---|
+| UIEB | https://li-chongyi.github.io/proj_benchmark.html | Yes | 950 |
+| EUVP | http://irvlab.cs.umn.edu/resources/euvp-dataset | Partial | 12k+ |
+| SUIM-E | http://irvlab.cs.umn.edu/resources/suim-dataset | Yes | ~1500 |
+| RUIE | https://github.com/dlut-dimt/RUIE | No | 4365 |
+
+Place images under `data/train/input/` and `data/train/gt/`.
+
+---
+
+## How to Run
+
+### Train
+
+```bash
+python train.py
+```
+
+Trains for up to 30 epochs with early stopping (patience=7). Best checkpoint saved to `qidl.pth`. All settings are in `config.py`.
+
+### Enhance a single image
+
+```bash
+python infer.py --input your_image.jpg --output enhanced.jpg
+```
+
+Defaults (`test.jpg` → `out.jpg`):
+
+```bash
+python infer.py
+```
+
+---
+
+## Configuration (`config.py`)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `img_size` | `256` | Input resolution |
+| `batch_size` | `8` | Training batch size |
+| `lr` | `1e-4` | Adam learning rate |
+| `epochs` | `30` | Max training epochs |
+| `patience` | `7` | Early-stopping patience |
+| `base_ch` | `64` | Base channel count |
+| `n_res` | `4` | Number of residual blocks |
+| `checkpoint` | `qidl.pth` | Saved model path |
+| `device` | auto | `cuda` or `cpu` |
+
+---
+
+## File Overview
+
+| File | What it does |
+|---|---|
+| `config.py` | Single source of truth for all settings |
+| `dataset.py` | Loads paired images; applies augmentation identically to input and GT via shared random seed |
+| `models.py` | All model components: `QuantumEncoding`, `CBAM`, `TransformerBlock`, `ResBlock`, `QIDL` |
+| `losses.py` | `mse_loss`, `ssim_loss`, `colour_loss`, `perceptual_loss` (VGG-16, device-safe), `total` |
+| `metrics.py` | `psnr()` and `ssim()` for evaluation |
+| `train.py` | Adam + ReduceLROnPlateau + gradient clipping + early stopping + checkpointing |
+| `infer.py` | Loads checkpoint, enhances one image, saves at original resolution |
+| `utils.py` | `set_seed`, `save_model`, `load_model`, `count_params`, `mkdir` |
 
 ---
 
@@ -126,3 +153,7 @@ Ravikumar, M. (2026). Quantum-Inspired Deep Learning Framework for Robust
 Underwater Image Enhancement and Restoration. VIT Chennai.
 https://github.com/meghnarav/qidl-uier
 ```
+
+---
+
+**License:** Copyright (c) 2026 Meghna Ravikumar. All rights reserved.
